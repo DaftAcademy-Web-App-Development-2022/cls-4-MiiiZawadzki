@@ -7,6 +7,9 @@ import { Model } from "~/models/Playlist.model";
 import { BarsArrowDownIcon } from "@heroicons/react/20/solid";
 
 import styles from "./Form.module.css";
+import useSpotify from "~/hooks/useSpotify.hook";
+import useList from "~/hooks/useList.hook";
+import slugify from "slugify";
 
 type FormData = Model;
 
@@ -14,7 +17,14 @@ interface Props {
   children?: React.ReactNode;
 }
 
-export const Form: React.FC<Props> = ({}) => {
+export const Form: React.FC<Props> = ({ }) => {
+  const { me } = useSpotify();
+  const { mutate } = useList({
+    limit: 0,
+    revalidateOnMount: false,
+    revalidateOnFocus: false,
+  });
+
   const {
     register,
     setValue,
@@ -24,7 +34,7 @@ export const Form: React.FC<Props> = ({}) => {
   } = useForm<FormData>({
     defaultValues: {
       name: "",
-      owner: "",
+      owner: me?.display_name || "",
       slug: "",
       upvote: 0,
       spotifyId: "",
@@ -34,14 +44,32 @@ export const Form: React.FC<Props> = ({}) => {
 
   const [loading, setLoading] = React.useState(false);
 
+  React.useEffect(
+    () => {
+      setValue("owner", me?.display_name || "");
+    }, [me]
+  );
+
   const onSubmit = handleSubmit(async (data) => {
     setLoading(true);
-    console.log(data);
 
-    setTimeout(() => {
-      setLoading(false);
-      reset();
-    }, 2000);
+    data.slug = slugify(data.name, { lower: true });
+    const response: Response = await fetch("/api/playlist", {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      console.log('API error has occured');
+    }
+
+    mutate();
+    setLoading(false);
+    reset();
   });
 
   return (
